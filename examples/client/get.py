@@ -35,6 +35,14 @@ optparser.add_option(
     help="Displays this message.")
 
 optparser.add_option(
+    "-U", "--username", dest="username", type="string", metavar="<USERNAME>",
+    help="Username to connect to database.")
+
+optparser.add_option(
+    "-P", "--password", dest="password", type="string", metavar="<PASSWORD>",
+    help="Password to connect to database.")
+
+optparser.add_option(
     "-h", "--host", dest="host", type="string", default="127.0.0.1", metavar="<ADDRESS>",
     help="Address of Aerospike server.")
 
@@ -43,12 +51,28 @@ optparser.add_option(
     help="Port of the Aerospike server.")
 
 optparser.add_option(
+    "--timeout", dest="timeout", type="int", default=1000, metavar="<MS>",
+    help="Client timeout")
+
+optparser.add_option(
+    "--read-timeout", dest="read_timeout", type="int", default=1000, metavar="<MS>",
+    help="Client read timeout")
+
+optparser.add_option(
     "-n", "--namespace", dest="namespace", type="string", default="test", metavar="<NS>",
     help="Port of the Aerospike server.")
 
 optparser.add_option(
     "-s", "--set", dest="set", type="string", default="demo", metavar="<SET>",
     help="Port of the Aerospike server.")
+
+optparser.add_option(
+    "--no-key", dest="nokey", action="store_true",
+    help="Do not return the key")
+
+optparser.add_option(
+    "--no-metadata", dest="nometadata", action="store_true",
+    help="Do not return the metadata")
 
 (options, args) = optparser.parse_args()
 
@@ -67,7 +91,10 @@ if len(args) != 1:
 ################################################################################
 
 config = {
-    'hosts': [ (options.host, options.port) ]
+    'hosts': [ (options.host, options.port) ],
+    'policies': {
+        'timeout': options.timeout
+    }
 }
 
 ################################################################################
@@ -82,7 +109,7 @@ try:
     # Connect to Cluster
     # ----------------------------------------------------------------------------
 
-    client = aerospike.client(config).connect()
+    client = aerospike.client(config).connect(options.username, options.password)
 
     # ----------------------------------------------------------------------------
     # Perform Operation
@@ -92,12 +119,21 @@ try:
         namespace = options.namespace if options.namespace and options.namespace != 'None' else None
         set = options.set if options.set and options.set != 'None' else None
         key = args.pop()
-        policy = None
+        policy = {
+            'timeout': options.read_timeout
+        }
 
         (key, metadata, record)= client.get((namespace, set, key), policy)
 
         if metadata != None:
-            print(key, metadata, record)
+            if options.nometadata and options.nokey:
+                print(record)
+            elif options.nometadata:
+                print(key, record)
+            elif options.nokey:
+                print(metadata, record)
+            else:
+                print(key, metadata, record)
             print("---")
             print("OK, 1 record found.")
         else:

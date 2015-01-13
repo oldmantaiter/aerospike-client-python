@@ -30,6 +30,7 @@ from subprocess import call
 # ENVIRONMENT VARIABLES
 ################################################################################
 
+AEROSPIKE_C_VERSION = os.getenv('AEROSPIKE_C_VERSION')
 AEROSPIKE_C_HOME = os.getenv('AEROSPIKE_C_HOME')
 PREFIX = None
 PLATFORM =  platform.platform(1)
@@ -60,7 +61,8 @@ libraries = [
   'ssl',
   'crypto',
   'pthread',
-  'm'
+  'm',
+  'z'
   ]
 
 ################################################################################
@@ -116,7 +118,7 @@ elif LINUX:
       '/lib',
       ]
 
-    lua_aliases = ['lua','lua5.1','lua-5.1']
+    lua_aliases = ['lua5.1','lua-5.1','lua']
 
     liblua = None
     for directory in lua_dirs:
@@ -161,8 +163,18 @@ if os.environ.get('NO_RESOLVE_C_CLIENT_DEP', None):
         
 
 else:
-    data_files = []
     lua_path = "aerospike-client-c/lua"
+
+    data_files = [
+        ('aerospike', []),
+        ('aerospike/lua', [
+            lua_path + '/aerospike.lua',
+            lua_path + '/as.lua',
+            lua_path + '/stream_ops.lua',
+            ]
+        )
+    ]
+    
     if 'build' in sys.argv or 'install' in sys.argv :
 
         # Prefix for Aerospike C client libraries and headers
@@ -178,6 +190,9 @@ else:
 
         if PREFIX:
             os.putenv('PREFIX', PREFIX)
+        
+        if AEROSPIKE_C_VERSION:
+            os.putenv('AEROSPIKE_C_VERSION', AEROSPIKE_C_VERSION)
         
         rc = call(['./scripts/aerospike-client-c.sh'])
         if rc != 0 :
@@ -245,7 +260,7 @@ with open(path.join(CWD, 'VERSION')) as f:
 setup(
     name = 'aerospike', 
     
-    version = version, 
+    version = version.strip(), 
 
     description = 'Aerospike Client Library for Python',
     long_description = long_description,
@@ -269,70 +284,82 @@ setup(
 
     zip_safe = False,
 
-    # include_package_data = True,
+    include_package_data = True,
 
     # Package Data Files
     package_data = {
         'aerospike': [
             lua_path + '/*.lua',
-            ]
+        ]
     },
 
     # Data files
     data_files = data_files,
 
+    eager_resources = [
+        lua_path + '/aerospike.lua',
+        lua_path + '/as.lua',
+        lua_path + '/stream_ops.lua',
+    ],
 
     ext_modules = [
-      Extension( 
+        Extension( 
+            # Extension Name
+            'aerospike',
 
-        # Extension Name
-        'aerospike',
+            # Source Files
+            [
+                'src/main/aerospike.c', 
+                'src/main/client/type.c',
+                'src/main/client/apply.c',
+                'src/main/client/close.c',
+                'src/main/client/connect.c',
+                'src/main/client/exists.c',
+                'src/main/client/exists_many.c',
+                'src/main/client/get.c',
+                'src/main/client/get_many.c',
+                'src/main/client/info_node.c',
+                'src/main/client/info.c',
+                'src/main/client/key.c',
+                'src/main/client/put.c',
+                'src/main/client/operate.c',
+                'src/main/client/query.c',
+                'src/main/client/remove.c',
+                'src/main/client/scan.c',
+                'src/main/client/select.c',
+                'src/main/client/admin.c',
+                'src/main/client/udf.c',
+                'src/main/client/sec_index.c',
+                'src/main/key/type.c',
+                'src/main/key/apply.c',
+                'src/main/key/exists.c',
+                'src/main/key/get.c',
+                'src/main/key/put.c',
+                'src/main/key/remove.c',
+                'src/main/query/type.c',
+                'src/main/query/apply.c',
+                'src/main/query/foreach.c',
+                'src/main/query/results.c',
+                'src/main/query/select.c',
+                'src/main/query/where.c',
+                'src/main/scan/type.c',
+                'src/main/scan/foreach.c',
+                'src/main/scan/results.c',
+                'src/main/scan/select.c',
+                'src/main/conversions.c',
+                'src/main/policy.c',
+                'src/main/predicates.c'
+            ],
 
-        # Source Files
-        [ 
-            'src/main/aerospike.c', 
-            'src/main/client/type.c',
-            'src/main/client/apply.c',
-            'src/main/client/close.c',
-            'src/main/client/connect.c',
-            'src/main/client/exists.c',
-            'src/main/client/get.c',
-            'src/main/client/info.c',
-            'src/main/client/key.c',
-            'src/main/client/put.c',
-            'src/main/client/query.c',
-            'src/main/client/remove.c',
-            'src/main/client/scan.c',
-            'src/main/key/type.c',
-            'src/main/key/apply.c',
-            'src/main/key/exists.c',
-            'src/main/key/get.c',
-            'src/main/key/put.c',
-            'src/main/key/remove.c',
-            'src/main/query/type.c',
-            'src/main/query/apply.c',
-            'src/main/query/foreach.c',
-            'src/main/query/results.c',
-            'src/main/query/select.c',
-            'src/main/query/where.c',
-            'src/main/scan/type.c',
-            'src/main/scan/foreach.c',
-            'src/main/scan/results.c',
-            'src/main/scan/select.c',
-            'src/main/conversions.c',
-            'src/main/policy.c',
-            'src/main/predicates.c'
-        ],
+            # Compile
+            include_dirs = include_dirs,
+            extra_compile_args = extra_compile_args,
 
-        # Compile
-        include_dirs = include_dirs,
-        extra_compile_args = extra_compile_args,
-
-        # Link
-        library_dirs = library_dirs,
-        libraries = libraries,
-        extra_objects = extra_objects,
-        extra_link_args = extra_link_args,
-      )
+            # Link
+            library_dirs = library_dirs,
+            libraries = libraries,
+            extra_objects = extra_objects,
+            extra_link_args = extra_link_args,
+        )
     ]
   )

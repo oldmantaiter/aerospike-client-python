@@ -15,7 +15,7 @@
 # limitations under the License.
 ################################################################################
 
-AEROSPIKE_C_VERSION=${AEROSPIKE_C_CLIENT:-'latest'}
+AEROSPIKE_C_VERSION=${AEROSPIKE_C_VERSION:-'latest'}
 
 ################################################################################
 #
@@ -31,7 +31,7 @@ unset PKG_DIST
 unset PKG_TYPE
 unset PKG_PATH
 
-LUA_PATH=
+LUA_PATH=${AEROSPIKE_LUA_PATH}
 
 ################################################################################
 #
@@ -51,7 +51,7 @@ detect_linux()
 
     case ${DIST_NAME} in
 
-      "centos6" | "redhatenterpriceserver6" )
+      "centos6" | "redhatenterpriceserver6" | "fedora20" | "oracleserver6" )
         echo "el6" "rpm"
         return 0
         ;;
@@ -66,6 +66,11 @@ detect_linux()
         return 0
         ;;
 
+      "linuxmint17" )
+        echo "ubuntu12"  "deb"
+        return 0
+        ;;
+
       * )
         echo "error: ${DIST_NAME} is not supported."
         return 1
@@ -74,12 +79,34 @@ detect_linux()
     esac
   fi
 
-  # Ok, no LSB, so check for /etc/issue
+  # No LSB, so use rpm to find if this is a CentOS-like release
+  if [ ! -z "$(which rpm)" ]; then
+      rel_pkg=$(rpm -qa '(redhat|sl|slf|centos|oraclelinux)-release(|-server|-workstation|-client|-computenode)')
+      if [ $rel_pkg ]; then
+          vers=`rpm -q --queryformat '%{VERSION}' ${rel_pkg}`
+          case ${vers} in
+
+              "6" )
+                  echo "el6" "rpm"
+                  return 0
+                  ;;
+
+              "7" )
+                  # modify this once we have a el7 rpm
+                  echo "el6" "rpm"
+                  return 0
+                  ;;
+
+          esac
+      fi
+  fi
+
+  # Ok, check for /etc/issue
   if [ -f /etc/issue ]; then
     dist=$(cat /etc/issue | tr '[:upper:]' '[:lower:]')
     case ${dist} in
 
-      "centos"* | "red hat enterprise linux"* | "fedora"* )
+      "centos"* | "red hat enterprise linux"* | "fedora"* | "oracleserver"* )
         echo "el6" "rpm"
         return 0
         ;;

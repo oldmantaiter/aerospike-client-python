@@ -69,6 +69,15 @@ optparser.add_option(
     "-b", "--bins", dest="bins", type="string", action="append", 
     help="Bins to select from each record.")
 
+optparser.add_option(
+    "--show-key", dest="show_key", action="store_true",
+    help="If set, displays the key/digest.")
+
+optparser.add_option(
+    "--show-meta", dest="show_meta", action="store_true",
+    help="If set, displays the metadata.")
+
+
 (options, args) = optparser.parse_args()
 
 if options.help:
@@ -88,7 +97,7 @@ if len(args) > 1:
 config = {
     'hosts': [ (options.host, options.port) ],
     'lua': {
-        'user_path': os.path.abspath(os.path.dirname(__file__))
+        'user_path': os.path.dirname(__file__)
     }
 }
 
@@ -166,9 +175,16 @@ try:
         results = []
 
         # callback to be called for each record read
-        def callback(result):
-            results.append(result)
-            print(result)
+        def callback((key, meta, rec)):
+            results.append((key, meta, rec))
+            if options.show_key and options.show_meta:
+                print(key, meta, rec)
+            elif options.show_key:
+                print(key, rec)
+            elif options.show_meta:
+                print(meta, rec)
+            else:
+                print(rec)
         
         # invoke the operations, and for each record invoke the callback
         q.foreach(callback)

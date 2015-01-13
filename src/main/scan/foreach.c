@@ -35,6 +35,8 @@ typedef struct {
 
 static bool each_result(const as_val * val, void * udata)
 {
+	bool rval = true;
+
 	if ( !val ) {
 		return false;
 	}
@@ -45,8 +47,9 @@ static bool each_result(const as_val * val, void * udata)
 	PyObject * py_callback = data->callback;
 
 	// Python Function Arguments and Result Value
-	PyObject * py_arglist = NULL; 
+	PyObject * py_arglist = NULL;
 	PyObject * py_result = NULL;
+	PyObject * py_return = NULL;
 
 	// Lock Python State
 	PyGILState_STATE gstate;
@@ -56,20 +59,40 @@ static bool each_result(const as_val * val, void * udata)
 	val_to_pyobject(err, val, &py_result);
 
 	// Build Python Function Arguments
-	py_arglist = Py_BuildValue("(O)", py_result);
+	py_arglist = PyTuple_New(1);
+	PyTuple_SetItem(py_arglist, 0, py_result);
 
 	// Invoke Python Callback
-	PyEval_CallObject(py_callback, py_arglist);
-
-	// TODO: handle return value
+	py_return = PyEval_CallObject(py_callback, py_arglist);
 
 	// Release Python Function Arguments
 	Py_DECREF(py_arglist);
 
+	// handle return value
+	if ( py_return == NULL ) {
+		// an exception was raised, handle it (someday)
+		// for now, we bail from the loop
+		as_error_update(err, AEROSPIKE_ERR_PARAM, "Callback function contains an error");
+		rval = false;
+	}
+	else if (  PyBool_Check(py_return) ) {
+		if ( Py_False == py_return ) {
+			rval = false;
+		}
+		else {
+			rval = true;
+		}
+		Py_DECREF(py_return);
+	}
+	else {
+		rval = true;
+		Py_DECREF(py_return);
+	}
+
 	// Release Python State
 	PyGILState_Release(gstate);
 
-	return true;
+	return rval;
 }
 
 PyObject * AerospikeScan_Foreach(AerospikeScan * self, PyObject * args, PyObject * kwds)
@@ -77,6 +100,8 @@ PyObject * AerospikeScan_Foreach(AerospikeScan * self, PyObject * args, PyObject
 	// Python Function Arguments
 	PyObject * py_callback = NULL;
 	PyObject * py_policy = NULL;
+	as_policy_scan scan_policy;
+	as_policy_scan * scan_policy_p = NULL;
 
 	// Python Function Keyword Arguments
 	static char * kwlist[] = {"callback", "policy", NULL};
@@ -88,14 +113,17 @@ PyObject * AerospikeScan_Foreach(AerospikeScan * self, PyObject * args, PyObject
 
 	// Aerospike Client Arguments
 	as_error err;
-	as_policy_scan policy;
-	as_policy_scan * policy_p = NULL;
 
 	// Initialize error
 	as_error_init(&err);
 
+	if (!self || !self->client->as) {
+		as_error_update(&err, AEROSPIKE_ERR_PARAM, "Invalid aerospike object");
+		goto CLEANUP;
+	}
+
 	// Convert python policy object to as_policy_exists
-	pyobject_to_policy_scan(&err, py_policy, &policy, &policy_p);
+	pyobject_to_policy_scan(&err, py_policy, &scan_policy, &scan_policy_p);
 	if ( err.code != AEROSPIKE_OK ) {
 		goto CLEANUP;
 	}
@@ -104,25 +132,29 @@ PyObject * AerospikeScan_Foreach(AerospikeScan * self, PyObject * args, PyObject
 	LocalData data;
 	data.callback = py_callback;
 	as_error_init(&data.error);
-	
+
 	// We are spawning multiple threads
 	PyThreadState * _save = PyEval_SaveThread();
 
 	// Invoke operation
-	aerospike_scan_foreach(self->client->as, &err, policy_p, &self->scan, each_result, &data);
+	aerospike_scan_foreach(self->client->as, &err, scan_policy_p, &self->scan, each_result, &data);
 
 	// We are done using multiple threads
 	PyEval_RestoreThread(_save);
-	
+	if (data.error.code != AEROSPIKE_OK) {
+		goto CLEANUP;
+	}
+
 CLEANUP:
 
 	if ( err.code != AEROSPIKE_OK ) {
 		PyObject * py_err = NULL;
 		error_to_pyobject(&err, &py_err);
 		PyErr_SetObject(PyExc_Exception, py_err);
+		Py_DECREF(py_err);
 		return NULL;
 	}
-	
+
 	Py_INCREF(Py_None);
 	return Py_None;
 }

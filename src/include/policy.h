@@ -18,6 +18,24 @@
 #include <aerospike/as_error.h>
 #include <aerospike/as_policy.h>
 
+#define MAX_CONSTANT_STR_SIZE 512
+
+/*
+ *******************************************************************************************************
+ *Structure to map constant number to constant name string for Aerospike constants.
+ *******************************************************************************************************
+ */
+typedef struct Aerospike_Constants {
+    long    constantno;
+    char    constant_str[MAX_CONSTANT_STR_SIZE];
+}AerospikeConstants;
+
+#define AEROSPIKE_CONSTANTS_ARR_SIZE (sizeof(aerospike_constants)/sizeof(AerospikeConstants))
+
+as_status pyobject_to_policy_admin(as_error * err, PyObject * py_policy,
+									as_policy_admin * policy,
+									as_policy_admin ** policy_p);
+
 as_status pyobject_to_policy_apply(as_error * err, PyObject * py_policy,
 									as_policy_apply * policy,
 									as_policy_apply ** policy_p);
@@ -45,3 +63,15 @@ as_status pyobject_to_policy_scan(as_error * err, PyObject * py_policy,
 as_status pyobject_to_policy_write(as_error * err, PyObject * py_policy,
 									as_policy_write * policy,
 									as_policy_write ** policy_p);
+
+as_status pyobject_to_policy_operate(as_error * err, PyObject * py_policy,
+                                    as_policy_operate * policy,
+                                    as_policy_operate ** policy_p);
+
+as_status pyobject_to_policy_batch(as_error * err, PyObject * py_policy,
+                                   as_policy_batch * policy,
+                                   as_policy_batch ** policy_p);
+
+as_status declare_policy_constants(PyObject *aerospike);
+
+void set_scan_options(as_error *err, as_scan* scan_p, PyObject * py_options);
